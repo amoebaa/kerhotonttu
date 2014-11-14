@@ -1,0 +1,29 @@
+﻿<!DOCTYPE html>
+<meta charset="utf8">
+<html>
+
+<style>
+.axis path,
+.axis line {
+  fill: none;
+  stroke: #000;
+  shape-rendering: crispEdges;
+}
+</style>
+<script type="text/javascript" src="d3.min.js" charset="utf-8"></script>
+<script type="text/javascript" src="drawstuff.js"></script>
+<script type="text/javascript" src="linechart.js"></script>
+
+<body onload="loadData()">
+
+<div id="wrapper" style="float:left;">
+    Kerhon lämpötila:<br>
+    <div id="tempChart" style="clear:both;width:500px;height:200px;"></div>
+    Kerhon valot:<br>
+    <div id="lightChart" Style="clear:both;width:500px;height:200px;"></div>
+    Oven tila:<br>
+    <div id="doorChart" style="clear:both;width:500px;height:200px;"></div>
+</div>
+
+</body>
+</html>

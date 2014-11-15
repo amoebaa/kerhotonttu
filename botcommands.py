@@ -59,3 +59,14 @@ class Lampo:
         irc.ser.write("L")
 
 command_dict[ ':!lampo' ] = Lampo()
+
+class Viisaus:
+
+    def main(self, irc, line):
+
+        if len(line) > 4:
+            irc.generate_markov(line[4])
+        else:
+            irc.generate_markov()
+
+command_dict[ ':!viisaus' ] = Viisaus()

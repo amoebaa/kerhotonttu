@@ -8,6 +8,7 @@ import serial
 import sys
 import sched, time
 from datetime import datetime
+from markovchain import Markov
 
 #onkelmia: ctrl-c ei lopeta threadeja, eikä tajua reconnectata jos yhteys
 #katkeaa. lisäksi ei tajua vaihtaa nikkiä jos nikki rekisteröity
@@ -101,9 +102,11 @@ class SerialReader:
 
 class Ircbot:
 
-    def __init__( self, serial ):
+    def __init__( self, serial, encoding, markov ):
 
         self.ser = serial
+
+        self.markov = markov
 
         # välttämättömiä tietoja
 
@@ -113,6 +116,7 @@ class Ircbot:
         self.realname = 'Kerhotonttu'
         self.nick     = 'Kerhotonttu'
         self.msgcount = 0
+        self.encoding = encoding
 
         # luodaan socket
 
@@ -130,16 +134,18 @@ class Ircbot:
 
         self.channel  = '#xcalibur'
         
-        Timer(60, self.clearCounter, ()).start()
+        self.tmr = Timer(60, self.clearCounter, ())
+        self.tmr.start()
         
     #nollataan spämminestolaskuri
     def clearCounter(self):
         self.msgcount = 0
-        Timer(60, self.clearCounter, ()).start()
+        self.tmr = Timer(60, self.clearCounter, ())
+        self.tmr.start()
 
     def send( self, string ):
 
-        self.socket.send( (string + '\r\n'))
+        self.socket.send( (string.encode(self.encoding) + '\r\n'))
     
     #lähettää viestin, jos lähetetty 6 viestiä minuutissa, ei tee mitään
     def sendmsg( self, string):
@@ -181,6 +187,18 @@ class Ircbot:
 
             pass
 
+    def generate_markov(self, word=None):
+        if self.markov is not None:
+            textmessage = ""
+            if word is None:
+                textmessage = self.markov.generate_min_words(7)
+            else:
+                textmessage = self.markov.generate_starting_with(word)
+            print textmessage
+            self.sendmsg(textmessage)
+        else:
+            print "No markov module initialized!\n"
+
     def mainloop( self ):
 
         buffer = ''
@@ -193,17 +211,27 @@ class Ircbot:
             buffer = buffer.split( '\r\n' )
 
             for line in buffer[0:-1]:
-                
-                self.check( line )
+            
+                self.check( line.decode(self.encoding, "ignore") )
 
             buffer = buffer[-1]
+
+        print "Suljetaan botti..."
+        self.tmr.cancel()
 
 def main():
 
     serial = SerialReader()
     thread = threading.Thread(target=serial.read_from_port)
-
-    irc = Ircbot(serial)
+    
+    #logfile = "xcalibur.log"
+    logfile = None
+    if logfile is None:
+        markov = None
+    else:
+        markov = Markov(logfile)
+    
+    irc = Ircbot(serial, 'utf-8', markov)
     serial.setBot(irc)
     irc.connect()
     thread.start()

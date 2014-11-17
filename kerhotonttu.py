@@ -102,7 +102,7 @@ class SerialReader:
 
 class Ircbot:
 
-    def __init__( self, serial, encoding, markov ):
+    def __init__( self, serial, markov ):
 
         self.ser = serial
 
@@ -116,7 +116,6 @@ class Ircbot:
         self.realname = 'Kerhotonttu'
         self.nick     = 'Kerhotonttu'
         self.msgcount = 0
-        self.encoding = encoding
 
         # luodaan socket
 
@@ -145,7 +144,7 @@ class Ircbot:
 
     def send( self, string ):
 
-        self.socket.send( (string.encode(self.encoding) + '\r\n'))
+        self.socket.send( (string + '\r\n'))
     
     #l‰hett‰‰ viestin, jos l‰hetetty 6 viesti‰ minuutissa, ei tee mit‰‰n
     def sendmsg( self, string):
@@ -212,7 +211,7 @@ class Ircbot:
 
             for line in buffer[0:-1]:
             
-                self.check( line.decode(self.encoding, "ignore") )
+                self.check( line )
 
             buffer = buffer[-1]
 
@@ -231,7 +230,7 @@ def main():
     else:
         markov = Markov(logfile)
     
-    irc = Ircbot(serial, 'utf-8', markov)
+    irc = Ircbot(serial, markov)
     serial.setBot(irc)
     irc.connect()
     thread.start()

@@ -44,6 +44,14 @@ class Ovi:
 
 command_dict[ ':!ovi' ] = Ovi()
 
+
+class Stats:
+    
+    def main(self, irc, line):
+        irc.sendmsg("Tilastoja löytyy osoitteesta xcalibur.cc.tut.fi/~mikael/stats.html")
+    
+command_dict[ ':!stats']
+
 class Valo:
 
     def main(self, irc, line):

@@ -55,9 +55,9 @@ class SerialReader:
         elif data.startswith("kiinni"):
             self.bot.sendmsg("Ovi on kiinni.")
         elif data.startswith("ovi sulkeutui"):
-            self.bot.sendmsg("Ovi sulkeutui.")
+            self.bot.sendnotice("Ovi sulkeutui.")
         elif data.startswith("ovi aukesi"):
-            self.bot.sendmsg("Ovi aukesi.")
+            self.bot.sendnotice("Ovi aukesi.")
         elif data.startswith("valo pois"):
             self.bot.sendmsg("Valot ovat pois p‰‰lt‰.")
         elif data.startswith("valo"):
@@ -153,6 +153,13 @@ class Ircbot:
             self.msgcount += 1
             self.send(('PRIVMSG %s :' % self.channel) + string)
 
+    def sendnotice( self, string):
+        
+        if self.msgcount < 6:
+            self.msgcount += 1
+            self.send(('NOTICE %s :' % self.channel) + string)
+            
+            
     def connect( self ):
 
         self.socket.connect( ( self.server, self.port ) )
@@ -223,8 +230,8 @@ def main():
     serial = SerialReader()
     thread = threading.Thread(target=serial.read_from_port)
     
-    #logfile = "xcalibur.log"
-    logfile = None
+    logfile = "xcalibur.log"
+    #logfile = None
     if logfile is None:
         markov = None
     else:

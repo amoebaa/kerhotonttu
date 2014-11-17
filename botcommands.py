@@ -50,7 +50,7 @@ class Stats:
     def main(self, irc, line):
         irc.sendmsg("Tilastoja löytyy osoitteesta xcalibur.cc.tut.fi/~mikael/stats.html")
     
-command_dict[ ':!stats']
+command_dict[ ':!stats'] = Stats()
 
 class Valo:
 

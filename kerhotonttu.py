@@ -114,7 +114,7 @@ class Ircbot:
         self.port     = 6667
         self.username = 'Kerhotonttu'
         self.realname = 'Kerhotonttu'
-        self.nick     = 'Kerhotonttu'
+        self.nick     = 'Kerhotonttu__'
         self.msgcount = 0
 
         # luodaan socket
@@ -131,7 +131,7 @@ class Ircbot:
 
         # kanava jolle botti halutaan
 
-        self.channel  = '#xcalibur'
+        self.channel  = '#kerhotonttu_test'
         
         self.tmr = Timer(60, self.clearCounter, ())
         self.tmr.start()

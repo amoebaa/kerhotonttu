@@ -17,7 +17,7 @@ def main():
     
     c = db.cursor()
     data = []
-    with open('rawdata.csv') as f:
+    with open('rawdata.csv', 'r') as f:
         f.readline() # Discard first line
         for line in f:
             row = line.split(',')

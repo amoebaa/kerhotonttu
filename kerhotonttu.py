@@ -85,15 +85,18 @@ class SerialReader:
             if len(data) < 9:
                 self.serial_port.write("E".encode())
                 return
-            c.execute('''INSERT INTO rawdata VALUES
-                         (?,?,?,?);
-                      ''', # konvertoidaan se oikeeks päivämääräks kantaan
-                      ('20' + data[5] + '-' + data[4] + '-' + data[3] + ' ' + data[2] + ':' + data[1],
-                       data[6],
-                       data[7],
-                       data[8]));
-            self.database.commit()
-            print "TRIED TO INSERT"
+            try:
+                c.execute('''INSERT INTO rawdata VALUES
+                             (?,?,?,?);
+                          ''', # konvertoidaan se oikeeks päivämääräks kantaan
+                          ('20' + data[5] + '-' + data[4] + '-' + data[3] + ' ' + data[2] + ':' + data[1],
+                           data[6],
+                           data[7],
+                           data[8]));
+                self.database.commit()
+                print "data inserted"
+            except sqlite3.Error as e:
+                    print e.message
             self.serial_port.write('K'.encode())
     #jos datan vastaanotto loppui, luodaan uusi csv webbikikkareelle
         elif data.startswith("empty"):
@@ -108,13 +111,13 @@ class SerialReader:
             data
             with open('public_html/data.csv', 'w') as f:
                 f.write('aika,lampo,ovi,valo\n')
+                print "generating csv"
                 for row in data:
                     formatted_row = (
                         perverse_format_datetime(row[0]),
-                        row[1],
-                        row[2],
-                        row[3])
-                    print formatted_row
+                        str(row[1]),
+                        str(row[2]),
+                        str(row[3]))
                     f.write(",".join(formatted_row) + "\n")
 
         else:

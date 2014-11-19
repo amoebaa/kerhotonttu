@@ -7,27 +7,41 @@ from threading import Timer
 import serial
 import sys
 import sched, time
+import sqlite3
 from datetime import datetime
 from markovchain import Markov
 
 #onkelmia: ctrl-c ei lopeta threadeja, eikä tajua reconnectata jos yhteys
 #katkeaa. lisäksi ei tajua vaihtaa nikkiä jos nikki rekisteröity
 
+# Onhan se aika perverssi
+def perverse_format_datetime(orig):
+    dt = datetime.strptime(orig, "%Y-%m-%d %H:%M");
+    return dt.strftime("%M-%H-%d-%m-%Y");
 
 #hoitaa AVR:n kanssa kommunikoinnin
 class SerialReader:
 
     def __init__(self):
+        self.database = sqlite3.connect("events.sqlite")
         self.connected = False
         self.portInUse = False
         port = '/dev/ttyS0'
         baud = 9600
-        
+
+        self.database.execute(
+            '''CREATE TABLE IF NOT EXISTS rawdata
+               (aika TEXT, -- Vaatii tietyn formaatin
+                lampo INTEGER, -- oispa kaljaa
+                ovi INTEGER,
+                valo INTEGER);''')
+        self.database.commit()
+        self.database.close()
+
         self.serial_port = serial.Serial(port, baud, parity=serial.PARITY_EVEN, timeout=None)
-        
+
         Timer(60, self.readData, ()).start()
-        
-    
+
     #lukee datat 10min välein AVR:ltä
     def readData(self):
         print "reading"
@@ -35,14 +49,15 @@ class SerialReader:
         self.serial_port.write("A".encode())
         self.serial_port.write(datetime.now().strftime('%S%M%H%d%m%y\r\n'))
         self.serial_port.write("D".encode())
-        
+
         Timer(600, self.readData, ()).start()
-    
+
     def setBot(self, bot):
         self.bot = bot
-    
+
     #katsotaan mitä sarjaportista tuli ja toimitaan sen mukaan
     def handle_data(self, data):
+        self.database = sqlite3.connect("events.sqlite")
         data = data.strip('\n')
         data = data.strip('\r')
         #jostain syystä linuxilla sarjaportista luettuun dataan
@@ -65,34 +80,53 @@ class SerialReader:
         elif data.isdigit() and len(data) < 5:
             self.bot.sendmsg("Kerhon lämpötila %s astetta." % data)
         elif data.startswith("REC"):
-            with open('rawdata.csv', 'a') as f:
-                data = data.split(',')
-                if len(data) < 9:
-                    self.serial_port.write("E".encode())
-                    return
-                f.write(data[1] + '-' + data[2] + '-' + data[3] + '-' + data[4] + '-' + data[5] +
-                        ',' + data[6] + ',' + data[7] + ',' + data[8] + '\n')
-                self.serial_port.write('K'.encode())
-        #jos datan vastaanotto loppui, luodaan uusi csv webbikikkareelle
+            c = self.database.cursor()
+            data = data.split(',')
+            if len(data) < 9:
+                self.serial_port.write("E".encode())
+                return
+            c.execute('''INSERT INTO rawdata VALUES
+                         (?,?,?,?);
+                      ''', # konvertoidaan se oikeeks päivämääräks kantaan
+                      ('20' + data[5] + '-' + data[4] + '-' + data[3] + ' ' + data[2] + ':' + data[1],
+                       data[6],
+                       data[7],
+                       data[8]));
+            self.database.commit()
+            print "TRIED TO INSERT"
+            self.serial_port.write('K'.encode())
+    #jos datan vastaanotto loppui, luodaan uusi csv webbikikkareelle
         elif data.startswith("empty"):
             self.portInUse = False
             data = []
-            with open('rawdata.csv') as f:
-                data = f.readlines()[1:][-10800::10]
-            
+            c = self.database.cursor()
+            c.execute('''SELECT * FROM rawdata WHERE
+                         aika > datetime('now','-7 days', 'localtime');''')
+            data = c.fetchall()
+            #data = f.readlines()[1:][-10800::10]
+
             data
             with open('public_html/data.csv', 'w') as f:
                 f.write('aika,lampo,ovi,valo\n')
                 for row in data:
-                    f.write(row)
-            
+                    formatted_row = (
+                        perverse_format_datetime(row[0]),
+                        row[1],
+                        row[2],
+                        row[3])
+                    print formatted_row
+                    f.write(",".join(formatted_row) + "\n")
+
         else:
             print "*prööt*"
+
+        self.database.close()
+
     def read_from_port(self):
         print "reading\n"
         while not self.connected:
             self.connected = True
-            
+
             while True:
                 reading = self.serial_port.readline()
                 self.handle_data(reading)
@@ -132,10 +166,10 @@ class Ircbot:
         # kanava jolle botti halutaan
 
         self.channel  = '#kerhotonttu_test'
-        
+
         self.tmr = Timer(60, self.clearCounter, ())
         self.tmr.start()
-        
+
     #nollataan spämminestolaskuri
     def clearCounter(self):
         self.msgcount = 0
@@ -145,21 +179,20 @@ class Ircbot:
     def send( self, string ):
 
         self.socket.send( (string + '\r\n'))
-    
+
     #lähettää viestin, jos lähetetty 6 viestiä minuutissa, ei tee mitään
     def sendmsg( self, string):
-        
+
         if self.msgcount < 6:
             self.msgcount += 1
             self.send(('PRIVMSG %s :' % self.channel) + string)
 
     def sendnotice( self, string):
-        
+
         if self.msgcount < 6:
             self.msgcount += 1
             self.send(('NOTICE %s :' % self.channel) + string)
-            
-            
+
     def connect( self ):
 
         self.socket.connect( ( self.server, self.port ) )
@@ -217,7 +250,7 @@ class Ircbot:
             buffer = buffer.split( '\r\n' )
 
             for line in buffer[0:-1]:
-            
+
                 self.check( line )
 
             buffer = buffer[-1]
@@ -229,14 +262,14 @@ def main():
 
     serial = SerialReader()
     thread = threading.Thread(target=serial.read_from_port)
-    
+
     logfile = "xcalibur.log"
     #logfile = None
     if logfile is None:
         markov = None
     else:
         markov = Markov(logfile)
-    
+
     irc = Ircbot(serial, markov)
     serial.setBot(irc)
     irc.connect()
@@ -246,7 +279,7 @@ def main():
         thread._Thread__stop()
     except:
         print(str(thread.getName()) + ' could not be terminated')
-    
+
     sys.exit()
-    
+
 if __name__ == '__main__': main()

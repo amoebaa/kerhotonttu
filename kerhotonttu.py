@@ -17,13 +17,13 @@ from markovchain import Markov
 # Onhan se aika perverssi
 def perverse_format_datetime(orig):
     dt = datetime.strptime(orig, "%Y-%m-%d %H:%M");
-    return dt.strftime("%M-%H-%d-%m-%Y");
+    return dt.strftime("%M-%H-%d-%m-%y");
 
 #hoitaa AVR:n kanssa kommunikoinnin
 class SerialReader:
 
     def __init__(self):
-        self.database = sqlite3.connect("events.sqlite")
+        self.database = sqlite3.connect("rawdata.sqlite")
         self.connected = False
         self.portInUse = False
         port = '/dev/ttyS0'
@@ -57,7 +57,7 @@ class SerialReader:
 
     #katsotaan mitä sarjaportista tuli ja toimitaan sen mukaan
     def handle_data(self, data):
-        self.database = sqlite3.connect("events.sqlite")
+        self.database = sqlite3.connect("rawdata.sqlite")
         data = data.strip('\n')
         data = data.strip('\r')
         #jostain syystä linuxilla sarjaportista luettuun dataan

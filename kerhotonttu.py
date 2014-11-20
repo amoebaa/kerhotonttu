@@ -105,8 +105,7 @@ class SerialReader:
             c = self.database.cursor()
             c.execute('''SELECT * FROM rawdata WHERE
                          aika > datetime('now','-7 days', 'localtime');''')
-            data = c.fetchall()
-            #data = f.readlines()[1:][-10800::10]
+            data = c.fetchall()[0::10] # Slice alkaen 0:sta loppuen loppuun joka 10s
 
             data
             with open('public_html/data.csv', 'w') as f:

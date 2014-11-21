@@ -10,6 +10,7 @@ import sched, time
 import sqlite3
 from datetime import datetime
 from markovchain import Markov
+import settings
 
 #onkelmia: ctrl-c ei lopeta threadeja, eikä tajua reconnectata jos yhteys
 #katkeaa. lisäksi ei tajua vaihtaa nikkiä jos nikki rekisteröity
@@ -146,11 +147,11 @@ class Ircbot:
 
         # välttämättömiä tietoja
 
-        self.server   = 'irc.cc.tut.fi'
-        self.port     = 6667
-        self.username = 'Kerhotonttu'
-        self.realname = 'Kerhotonttu'
-        self.nick     = 'Kerhotonttu'
+        self.server   = settings.server
+        self.port     = settings.port
+        self.username = settings.name
+        self.realname = settings.name
+        self.nick     = settings.nick
         self.msgcount = 0
 
         # luodaan socket
@@ -167,7 +168,7 @@ class Ircbot:
 
         # kanava jolle botti halutaan
 
-        self.channel  = '#xcalibur'
+        self.channel  = settings.channel
 
         self.tmr = Timer(60, self.clearCounter, ())
         self.tmr.start()

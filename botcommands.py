@@ -69,10 +69,12 @@ class Lampo:
 command_dict[ ':!lampo' ] = Lampo()
 
 class Viisaus:
-
+    
     def main(self, irc, line):
 
-        if len(line) > 4:
+        if len(line) > 5 and len(line[5]) > 0:
+            irc.generate_markov(line[4], line[5])
+        elif len(line) > 4 and len(line[4]) > 0:
             irc.generate_markov(line[4])
         else:
             irc.generate_markov()

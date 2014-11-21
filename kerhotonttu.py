@@ -150,7 +150,7 @@ class Ircbot:
         self.port     = 6667
         self.username = 'Kerhotonttu'
         self.realname = 'Kerhotonttu'
-        self.nick     = 'Kerhotonttu__'
+        self.nick     = 'Kerhotonttu'
         self.msgcount = 0
 
         # luodaan socket
@@ -167,7 +167,7 @@ class Ircbot:
 
         # kanava jolle botti halutaan
 
-        self.channel  = '#kerhotonttu_test'
+        self.channel  = '#xcalibur'
 
         self.tmr = Timer(60, self.clearCounter, ())
         self.tmr.start()
@@ -228,13 +228,15 @@ class Ircbot:
 
             pass
 
-    def generate_markov(self, word=None):
+    def generate_markov(self, word1=None, word2=None):
         if self.markov is not None:
             textmessage = ""
-            if word is None:
-                textmessage = self.markov.generate_min_words(7)
+            if word2 is not None:
+                textmessage = self.markov.generate_starting_phrase(word1, word2)
+            elif word1 is not None:
+                textmessage = self.markov.generate_starting_with(word1)
             else:
-                textmessage = self.markov.generate_starting_with(word)
+                textmessage = self.markov.generate_min_words(8)
             print textmessage
             self.sendmsg(textmessage)
         else:

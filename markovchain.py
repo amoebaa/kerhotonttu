@@ -53,6 +53,8 @@ class Markov(object):
 	def generate_with_index(self, seed, size=50):
 		w1 = self.words[seed]
 		w2 = self.words[seed + 1]
+        if '\n' in w1:
+            return "" # hack? maybe
 		return self.generate_with(w1, w2, size)
 
 	# generate a phrase using the seed words, max length of size

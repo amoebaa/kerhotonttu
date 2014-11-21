@@ -1,6 +1,4 @@
 import random
-import codecs
-import sys
 
 class Markov(object):
 
@@ -27,7 +25,7 @@ class Markov(object):
 			if str.startswith("<"):
 				returnstring.append(str.split(">",1)[1])
 		
-		return '\n'.join(returnstring) # still separate lines with newline, so we know when phrases end
+		return ' \n'.join(returnstring) # still separate lines with newline, so we know when phrases end
 
 	# {word1, word2 -> word3} -structure
 	def triples(self):
@@ -49,24 +47,36 @@ class Markov(object):
 	# just generate any random pharase, max length of size
 	def generate(self, size=50):
 		seed = random.randint(0, self.word_size-3)
-		return self.generate_with(seed, size)
+		return self.generate_with_index(seed, size)
 
 	# generate a phrase using the seed index, max length of size
-	def generate_with(self, seed, size=50):
+	def generate_with_index(self, seed, size=50):
 		w1 = self.words[seed]
 		w2 = self.words[seed + 1]
+        if '\n' in w1:
+            return "" # hack? maybe
+		return self.generate_with(w1, w2, size)
+
+	# generate a phrase using the seed words, max length of size
+	def generate_with(self, word1, word2, size=50):
+		w1 = word1
+		w2 = word2
 		gen_words = []
-		if '\n' in w1:
-			return w1
 		for i in range(size):
 			gen_words.append(w1)
 			if '\n' in w2:
-				w2 = w2.split('\n')[0]
+				w2 = ''
 				break
 			w1, w2 = w2, random.choice(self.cache[(w1,w2)])
 		gen_words.append(w2)
 		return ' '.join(gen_words)
-		
+
+	# generate a phrasing using two seed words, max length of size
+	def generate_starting_phrase(self, seed_word1, seed_word2, size=50):
+		key = (seed_word1, seed_word2)
+		if (key not in self.cache):
+			return ("Valitettavasti " + seed_word1 + " " + seed_word2 + " ei ole tunnettujen fraasien joukossa")
+		return self.generate_with(seed_word1, seed_word2, size)
 
 	# generate a phrase using the seed word, max length of size
 	def generate_starting_with(self, seed_word, size=50):
@@ -87,7 +97,7 @@ class Markov(object):
 		index = random.choice(lst)
 		if index > len(self.words) - 2:
 			return seed_word
-		return self.generate_with(index, size)
+		return self.generate_with_index(index, size)
 
         # generate a phrase of at least words words, maximum of size
 	def generate_min_words(self, words=8, size=50):
@@ -95,3 +105,4 @@ class Markov(object):
 		while len(returnstring.split()) < words:
 			returnstring = self.generate(size)
 		return returnstring
+

@@ -10,6 +10,7 @@ import sched, time
 import sqlite3
 from datetime import datetime
 from markovchain import Markov
+import settings
 
 #onkelmia: ctrl-c ei lopeta threadeja, eikä tajua reconnectata jos yhteys
 #katkeaa. lisäksi ei tajua vaihtaa nikkiä jos nikki rekisteröity
@@ -26,6 +27,7 @@ class SerialReader:
         self.database = sqlite3.connect("rawdata.sqlite")
         self.connected = False
         self.portInUse = False
+        self.done = False
         port = '/dev/ttyS0'
         baud = 9600
 
@@ -40,7 +42,8 @@ class SerialReader:
 
         self.serial_port = serial.Serial(port, baud, parity=serial.PARITY_EVEN, timeout=None)
 
-        Timer(60, self.readData, ()).start()
+        self.tmr = Timer(60, self.readData, ())
+        self.tmr.start()
 
     #lukee datat 10min välein AVR:ltä
     def readData(self):
@@ -50,7 +53,8 @@ class SerialReader:
         self.serial_port.write(datetime.now().strftime('%S%M%H%d%m%y\r\n'))
         self.serial_port.write("D".encode())
 
-        Timer(600, self.readData, ()).start()
+        self.tmr = Timer(600, self.readData, ())
+        self.tmr.start()
 
     def setBot(self, bot):
         self.bot = bot
@@ -136,6 +140,9 @@ class SerialReader:
         if not self.portInUse:
             self.serial_port.write(string)
 
+    def stopTimer(self):
+        self.tmr.cancel()
+
 class Ircbot:
 
     def __init__( self, serial, markov ):
@@ -146,11 +153,11 @@ class Ircbot:
 
         # välttämättömiä tietoja
 
-        self.server   = 'irc.cc.tut.fi'
-        self.port     = 6667
-        self.username = 'Kerhotonttu'
-        self.realname = 'Kerhotonttu'
-        self.nick     = 'Kerhotonttu__'
+        self.server   = settings.server
+        self.port     = settings.port
+        self.username = settings.name
+        self.realname = settings.name
+        self.nick     = settings.nick
         self.msgcount = 0
 
         # luodaan socket
@@ -167,7 +174,7 @@ class Ircbot:
 
         # kanava jolle botti halutaan
 
-        self.channel  = '#kerhotonttu_test'
+        self.channel  = settings.channel
 
         self.tmr = Timer(60, self.clearCounter, ())
         self.tmr.start()
@@ -228,13 +235,15 @@ class Ircbot:
 
             pass
 
-    def generate_markov(self, word=None):
+    def generate_markov(self, word1=None, word2=None):
         if self.markov is not None:
             textmessage = ""
-            if word is None:
-                textmessage = self.markov.generate_min_words(7)
+            if word2 is not None:
+                textmessage = self.markov.generate_starting_phrase(word1, word2)
+            elif word1 is not None:
+                textmessage = self.markov.generate_starting_with(word1)
             else:
-                textmessage = self.markov.generate_starting_with(word)
+                textmessage = self.markov.generate_min_words(8)
             print textmessage
             self.sendmsg(textmessage)
         else:
@@ -260,11 +269,33 @@ class Ircbot:
         print "Suljetaan botti..."
         self.tmr.cancel()
 
+class Input():
+
+    def __init__(self):
+        self.irc = None
+
+    def setBot(self, irc):
+        self.irc = irc
+    
+    def read_keyboard(self):
+        
+        key = ""
+        if self.irc is not None:
+            while True:
+                key = sys.stdin.read(1)
+                print key
+                if key == 'q':
+                    self.irc.send( 'QUIT' )
+                    self.irc.socket.close()
+                    self.irc.done = 1
+                    break;
+
 def main():
 
     serial = SerialReader()
     thread = threading.Thread(target=serial.read_from_port)
-
+    input = Input()
+    thread_input = threading.Thread(target=input.read_keyboard)
     logfile = "xcalibur.log"
     #logfile = None
     if logfile is None:
@@ -274,13 +305,24 @@ def main():
 
     irc = Ircbot(serial, markov)
     serial.setBot(irc)
+    input.setBot(irc)
+
     irc.connect()
     thread.start()
+    thread_input.start()
     irc.mainloop()
+    try:
+        serial.stopTimer()
+    except:
+        print('serial timer could not be stopped')
     try:
         thread._Thread__stop()
     except:
         print(str(thread.getName()) + ' could not be terminated')
+    try:
+        thread_input._Thread__stop()
+    except:
+        print(str(thread_input.getName()) + ' could not be terminated')
 
     sys.exit()
 

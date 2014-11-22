@@ -227,6 +227,9 @@ class Ircbot:
 
                 return
 
+            if line[3][1] != '!':
+                self.markov.learn(line[3:])
+
             # suoritetaan komennot jos niitä on tullut
 
             self.commands[ line[3] ].main( self , line )

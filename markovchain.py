@@ -12,7 +12,28 @@ class Markov(object):
 		self.words = text.split(' ')
 		self.word_size = len(self.words)
 		self.database()
-	
+
+	# learn a new row
+	def learn(self, row):
+		try:
+			w = row
+			if len(w[0]) > 1:
+				w[0] = w[0][1:]
+			else:
+				w = w[1:]
+			w.append('\n')
+			for i in range(len(w) - 2):
+				w1, w2, w3 = w[i], w[i+1], w[i+2]
+				key = (w1, w2)
+				if key in self.cache:
+					self.cache[key].append(w3)
+				else:
+					self.cache[key] = [w3]  
+			self.words.extend(w)
+			self.word_size = len(self.words)
+		except:
+			pass
+
 	#clean the log file from usual irc messages, and strip the leading timestamps and nicks
 	def clean_log(self, text):
 		returnstring = []
@@ -53,8 +74,8 @@ class Markov(object):
 	def generate_with_index(self, seed, size=50):
 		w1 = self.words[seed]
 		w2 = self.words[seed + 1]
-        if '\n' in w1:
-            return "" # hack? maybe
+		if '\n' in w1:
+			return "" # hack? maybe
 		return self.generate_with(w1, w2, size)
 
 	# generate a phrase using the seed words, max length of size

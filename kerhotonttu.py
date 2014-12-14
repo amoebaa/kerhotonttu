@@ -244,7 +244,7 @@ class Ircbot:
             if word2 is not None:
                 textmessage = self.markov.generate_starting_phrase(word1, word2)
             elif word1 is not None:
-                textmessage = self.markov.generate_starting_with(word1)
+                textmessage = self.markov.generate_min_words_starting_with(word1)
             else:
                 textmessage = self.markov.generate_min_words(8)
             print textmessage

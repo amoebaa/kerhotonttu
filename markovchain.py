@@ -1,9 +1,12 @@
 import random
+import string
 
 class Markov(object):
 
 	def __init__(self, file):
 		self.cache = {}
+		self.table = string.maketrans("","")
+		self.ATTEMPTS = 10
 		
 		with open(file) as f:
 			text = f.read()
@@ -99,28 +102,42 @@ class Markov(object):
 			return ("Valitettavasti " + seed_word1 + " " + seed_word2 + " ei ole tunnettujen fraasien joukossa")
 		return self.generate_with(seed_word1, seed_word2, size)
 
-	# generate a phrase using the seed word, max length of size
-	def generate_starting_with(self, seed_word, size=50):
+	# finds all the indexes for the supplied word (stripped from punctuation and capitalization)
+	def find_indexes(self, seed_word):
 		lst = []
-		offset = -1
 		word = seed_word.lower()
 		# find all the occurances
-		for w in self.words:
-			offset += 1
+		for i in range(len(self.words) - 1):
 			try:
-				if w.lower() == word:
-					lst.append(offset)
+				if self.words[i].lower().translate(self.table, string.punctuation) == word:
+					if '\n' not in self.words[i + 1]:
+						lst.append(i)
 			except UnicodeEncodeError:
-				if w == word:
-					lst.append(offset)
-		if len(lst) < 1:
-			return ("Valitettavasti " + seed_word + " ei ole tunnettujen sanojen joukossa")
+				if self.words[i] == word:
+					if '\n' not in self.words[i + 1]:
+						lst.append(i)
+		return lst
+
+	# generate a phrase using a random index from given choices
+	def generate_starting_with(self, lst, size=50):
 		index = random.choice(lst)
 		if index > len(self.words) - 2:
 			return seed_word
 		return self.generate_with_index(index, size)
 
-        # generate a phrase of at least words words, maximum of size
+	# generate a phrase starting with a word, minuum on words lenght, maximumon size
+	def generate_min_words_starting_with(self, seed_word, words=6, size=50):
+		returnstring = ""
+		indexes = self.find_indexes(seed_word)
+		if len(indexes) < 1:
+			return ("Valitettavasti " + seed_word + " ei ole tunnettujen sanojen joukossa")
+		for i in range(self.ATTEMPTS):
+			returnstring = self.generate_starting_with(indexes, size)
+			if len(returnstring.split()) > words:
+				break
+		return returnstring
+
+	# generate a phrase of at least words words, maximum of size
 	def generate_min_words(self, words=8, size=50):
 		returnstring = ""
 		while len(returnstring.split()) < words:

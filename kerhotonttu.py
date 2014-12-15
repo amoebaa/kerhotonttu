@@ -221,6 +221,16 @@ class Ircbot:
 
              self.send( 'PONG :abc' )
 
+        elif len(line) > 1 and (line[1] == '437' or line[1] == '433'):
+        
+            if self.nick == settings.nick2:
+                self.send( 'QUIT')
+                self.socket.close()
+                self.done = 1
+            else:
+                self.nick = settings.nick2
+                self.send( 'NICK %s' % self.nick )
+                self.send( 'JOIN %s' % self.channel )
         try:
 
             if line[2][0] != '#':
@@ -244,7 +254,7 @@ class Ircbot:
             if word2 is not None:
                 textmessage = self.markov.generate_starting_phrase(word1, word2)
             elif word1 is not None:
-                textmessage = self.markov.generate_starting_with(word1)
+                textmessage = self.markov.generate_min_words_starting_with(word1)
             else:
                 textmessage = self.markov.generate_min_words(8)
             print textmessage
@@ -282,16 +292,18 @@ class Input():
     
     def read_keyboard(self):
         
-        key = ""
+        command = ""
         if self.irc is not None:
             while True:
-                key = sys.stdin.read(1)
-                print key
-                if key == 'q':
+                command = sys.stdin.readline().lower().rstrip()
+                print command
+                if command == 'quit':
                     self.irc.send( 'QUIT' )
                     self.irc.socket.close()
                     self.irc.done = 1
                     break;
+                elif command == 'viisaus':
+                    self.irc.generate_markov()
 
 def main():
 

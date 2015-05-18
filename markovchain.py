@@ -15,6 +15,8 @@ class Markov(object):
 		self.words = text.split(' ')
 		self.word_size = len(self.words)
 		self.database()
+		self.braceleft = ('([{')
+		self.braceright= (')]}')
 
 	# learn a new row
 	def learn(self, row):
@@ -100,7 +102,7 @@ class Markov(object):
 		key = (seed_word1, seed_word2)
 		if (key not in self.cache):
 			return ("Valitettavasti " + seed_word1 + " " + seed_word2 + " ei ole tunnettujen fraasien joukossa")
-		return self.generate_with(seed_word1, seed_word2, size)
+		return self.prettify(self.generate_with(seed_word1, seed_word2, size))
 
 	# finds all the indexes for the supplied word (stripped from punctuation and capitalization)
 	def find_indexes(self, seed_word):
@@ -109,7 +111,8 @@ class Markov(object):
 		# find all the occurances
 		for i in range(len(self.words) - 1):
 			try:
-				if self.words[i].lower().translate(self.table, string.punctuation) == word:
+				selfword = self.words[i].lower()
+				if selfword == word or selfword.translate(self.table, string.punctuation) == word:
 					if '\n' not in self.words[i + 1]:
 						lst.append(i)
 			except UnicodeEncodeError:
@@ -135,12 +138,83 @@ class Markov(object):
 			returnstring = self.generate_starting_with(indexes, size)
 			if len(returnstring.split()) > words:
 				break
-		return returnstring
+		return self.prettify(returnstring)
 
 	# generate a phrase of at least words words, maximum of size
 	def generate_min_words(self, words=8, size=50):
 		returnstring = ""
 		while len(returnstring.split()) < words:
 			returnstring = self.generate(size)
-		return returnstring
+		return self.prettify(returnstring)
 
+	# prettify text, adding matching quotation marks and braces
+	def prettify(self, text, startsymbol=' ', endsymbol=' ', position=0):
+		i = position
+		phrase = text
+		while i < len(phrase):
+			# ignore basic :) ;) smileys!
+			if i > 0 and phrase[i] == ')' and (phrase[i-1] == ':' or phrase[i-1] == ';'):
+				i += 1
+				continue
+			elif phrase[i] in self.braceleft:
+				terminator = self.braceright[self.braceleft.find(phrase[i])]
+				response = self.prettify(phrase, phrase[i], terminator, i+1)
+				if type(response) is list:
+					i = response[0]
+					phrase = response[1]
+				else:
+					i = response
+			elif phrase[i] in self.braceright:
+				if phrase[i] != endsymbol:
+					terminator = self.braceleft[self.braceright.find(phrase[i])]
+					phrase = self.addMissing(phrase, terminator, position, i, True)
+					i += 1
+				else:
+					return i
+			elif phrase[i] == '\"':
+				if i == 0 or phrase[i-1] == ' ':
+					response = self.prettify(phrase, '\"', '\"', i+1)
+					if type(response) is list:
+						i = response[0]
+						phrase = response[1]
+					else:
+						i = response
+				elif i == len(phrase) - 1 or phrase[i+1] == ' ':
+					if endsymbol == '\"':
+						return i
+					else:
+						phrase = self.addMissing(phrase, '\"', position, i, True)
+						i += 1
+			i += 1
+
+		if endsymbol != ' ':
+			phrase = self.addMissing(phrase, endsymbol, position, len(phrase), False)			
+			return [len(phrase), phrase]
+
+		return phrase
+		
+	def addMissing(self, phrase, missingSymbol, start, end, onleft=False):
+		positions = list()
+		inside = 0
+		for i in range(start, end):
+			if (phrase[i] == ' ' and inside == 0):
+				positions.append(i)
+			elif i > 0 and phrase[i] == ')' and (phrase [i-1] == ':' or phrase[i-1] == ';'):
+				continue
+			elif phrase[i] in self.braceleft:
+				inside -= 1
+			elif phrase[i] in self.braceright:
+				inside += 1
+			elif phrase[i] == '\"':
+				if i == 0 or phrase[i-1] == ' ':
+					inside -= 1
+				elif i == len(phrase) - 1 or phrase[i+1] == ' ':
+					inside += 1
+		if onleft == True:
+			positions.append(start - 1)
+		else:
+			positions.append(end)
+		pos = positions[random.randint(0, len(positions) - 1)]
+		if onleft == True:
+			pos += 1
+		return phrase[:pos] + missingSymbol + phrase[pos:]

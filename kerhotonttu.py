@@ -8,7 +8,7 @@ import serial
 import sys
 import sched, time
 import sqlite3
-from datetime import datetime
+from datetime import datetime, timedelta
 from markovchain import Markov
 import settings
 
@@ -158,11 +158,18 @@ class Ircbot:
         self.username = settings.name
         self.realname = settings.name
         self.nick     = settings.nick
+        self.wisdomlimit = settings.wisdomlimit
+        self.wisdomssaid = 0
+        self.minutetimer = 0
         self.msgcount = 0
+        self.privmsgcount = 0
+        self.connected = False
+        self.reconnectioninterval = timedelta(0, 0, 0, 0, 5) # 5 minutes
+        self.lastconnection = datetime(2015, 1, 1) # Arbitrary date in the past
 
         # luodaan socket
 
-        self.socket   = socket.socket()
+        self.socket   = None
 
         # haetaan botille komennot
 
@@ -176,19 +183,39 @@ class Ircbot:
 
         self.channel  = settings.channel
 
-        self.tmr = Timer(60, self.clearCounter, ())
+        self.tmr = Timer(60, self.minuteTimer, ())
         self.tmr.start()
 
-    #nollataan spämminestolaskuri
-    def clearCounter(self):
+    #nollataan spämminestolaskuri + viisauslaskuri + yritetään ottaa nicki takas
+    def minuteTimer(self):
         self.msgcount = 0
-        self.tmr = Timer(60, self.clearCounter, ())
+        self.privmsgcount = 0
+        self.minutetimer += 1
+        if self.minutetimer % 5 == 0 and not self.connected:
+            self.connect()
+        if self.minutetimer % 10 == 0:
+            if self.connected and self.nick != settings.nick:
+                self.send('NICK %s' % settings.nick)
+        if (self.minutetimer >= 720):
+            self.minutetimer = 0
+            self.wisdomssaid = 0
+        self.tmr = Timer(60, self.minuteTimer, ())
         self.tmr.start()
 
     def send( self, string ):
 
-        self.socket.send( (string + '\r\n'))
+        if not self.socket is None:
+            try:
+                self.socket.send( (string + '\r\n'))
+            except socket.error:
+                print "Unable to send " + string
 
+    def sendprivmsg(self, target, string):
+    
+        if self.privmsgcount < 10:
+            self.privmsgcount += 1
+            self.send(('PRIVMSG %s :' % target) + string)
+        
     #lähettää viestin, jos lähetetty 6 viestiä minuutissa, ei tee mitään
     def sendmsg( self, string):
 
@@ -198,17 +225,22 @@ class Ircbot:
 
     def sendnotice( self, string):
 
-        if self.msgcount < 6:
-            self.msgcount += 1
-            self.send(('NOTICE %s :' % self.channel) + string)
+        self.send(('NOTICE %s :' % self.channel) + string)
 
     def connect( self ):
 
-        self.socket.connect( ( self.server, self.port ) )
-        self.send( 'NICK %s' % self.nick )
-        self.send( 'USER %s a a :%s' % ( self.username, self.realname ) )
+        if (self.lastconnection + self.reconnectioninterval) < datetime.now():
+            try:
+                self.lastconnection = datetime.now()
+                self.socket = socket.socket()
+                self.socket.connect( ( self.server, self.port ) )
+                self.send( 'NICK %s' % self.nick )
+                self.send( 'USER %s a a :%s' % ( self.username, self.realname ) )
 
-        self.send( 'JOIN %s' % self.channel )
+                self.send( 'JOIN %s' % self.channel )
+            
+            except socket.error:
+                print "Error connecting to " + self.server + ":" + str(self.port) + "!"
 
     def check( self, line ):
 
@@ -221,34 +253,57 @@ class Ircbot:
 
              self.send( 'PONG :abc' )
 
-        elif len(line) > 1 and (line[1] == '437' or line[1] == '433'):
-        
-            if self.nick == settings.nick2:
-                self.send( 'QUIT')
-                self.socket.close()
-                self.done = 1
+        elif len(line) > 1:
+            if (line[1] == '437' or line[1] == '433'):
+                if self.connected == False:
+                    if self.nick == settings.nick2:
+                        # Try again later
+                        self.send( 'QUIT' )
+                        self.nick = settings.nick
+                        print "Unable to use " + settings.nick + " or " + settings.nick2 + ", trying again later"
+                    else:
+                        self.nick = settings.nick2
+                        self.send( 'NICK %s' % self.nick )
+                        self.send( 'JOIN %s' % self.channel )
+            elif (line[1] == '366'): # we've joined a channel
+                self.connected = True
+            elif line[1] == 'NICK':
+                self.nick = line[2][1:]
             else:
-                self.nick = settings.nick2
-                self.send( 'NICK %s' % self.nick )
-                self.send( 'JOIN %s' % self.channel )
-        try:
+                try:
+                
+                    if line[2] == self.nick:
+                        target = line[0][1:line[0].find('!')]
+                        self.commands[ line[3] ].main( self , line, target)
+                        return
+                    if line[2] == self.channel:
+                        if line[3][1] != '!':
+                            self.markov.learn(line[3:])
 
-            if line[2][0] != '#':
+                        # suoritetaan komennot jos niitä on tullut
 
+                        self.commands[ line[3] ].main( self , line , None)
+
+                except:
+
+                    pass
+
+    def set_limit(self, limit):
+        self.wisdomlimit = limit
+    
+    def wisdom(self, word1=None, word2=None, target=None):        
+        if (target is None):
+            if self.wisdomlimit > 0 and self.wisdomssaid > self.wisdomlimit:
                 return
-
-            if line[3][1] != '!':
-                self.markov.learn(line[3:])
-
-            # suoritetaan komennot jos niitä on tullut
-
-            self.commands[ line[3] ].main( self , line )
-
-        except:
-
-            pass
-
-    def generate_markov(self, word1=None, word2=None):
+            self.wisdomssaid += 1
+        textmessage = self.generate_markov(word1, word2)
+        if (target is None):
+            self.sendmsg(textmessage)
+        else:
+            self.sendprivmsg(target, textmessage)
+        
+            
+    def generate_markov(self, word1=None, word2=None):        
         if self.markov is not None:
             textmessage = ""
             if word2 is not None:
@@ -258,26 +313,40 @@ class Ircbot:
             else:
                 textmessage = self.markov.generate_min_words(8)
             print textmessage
-            self.sendmsg(textmessage)
+            return textmessage
         else:
             print "No markov module initialized!\n"
 
+            
     def mainloop( self ):
 
         buffer = ''
 
         while not self.done:
-
+            
             # vastaanotetaan dataa
+            try:
+                if not self.socket is None:
+                    newline = self.socket.recv( 4096 )
+                    if len(newline) == 0:
+                        if self.connected == True:
+                            print "Disconnected from server!"
+                        self.connected = False
+                    else:
+                        buffer += newline
+                        buffer = buffer.split( '\r\n' )
 
-            buffer += self.socket.recv( 4096 )
-            buffer = buffer.split( '\r\n' )
+                        for line in buffer[0:-1]:
 
-            for line in buffer[0:-1]:
+                            self.check( line )
 
-                self.check( line )
-
-            buffer = buffer[-1]
+                        buffer = buffer[-1]
+                
+            except socket.error:
+                
+                if self.connected == True:
+                    print "Disconnected from server!"
+                self.connected = False
 
         print "Suljetaan botti..."
         self.tmr.cancel()
@@ -295,15 +364,31 @@ class Input():
         command = ""
         if self.irc is not None:
             while True:
-                command = sys.stdin.readline().lower().rstrip()
-                print command
-                if command == 'quit':
-                    self.irc.send( 'QUIT' )
-                    self.irc.socket.close()
-                    self.irc.done = 1
-                    break;
-                elif command == 'viisaus':
-                    self.irc.generate_markov()
+                command = sys.stdin.readline().lower().rstrip().split(' ')
+                if self.irc.connected:
+                    if command[0] == 'quit':
+                        self.irc.send( 'QUIT' )
+                        self.irc.socket.close()
+                        self.irc.done = 1
+                        break;
+                    elif command[0] == 'viisaus':
+                        if len(command) == 1:
+                            self.irc.wisdom()
+                        elif len(command) == 2:
+                            self.irc.wisdom(command[1])
+                        else:
+                            self.irc.wisdom(command[1], command[2])
+                    elif command[0] == 'limit' and len(command) > 1:                    
+                        try:
+                            val = int(command[1])
+                            self.irc.set_limit(val)
+                            print "Limit is now " + command[1]
+                        except ValueError:
+                            print command[1] + " is not an integer!"
+                    elif command[0] == 'say' and len(command) > 1:
+                        self.irc.sendmsg(' '.join(command[1:]))
+                    elif command[0] == 'cmd' and len(command) > 1:
+                        self.irc.send(' '.join(command[1:]))
 
 def main():
 
